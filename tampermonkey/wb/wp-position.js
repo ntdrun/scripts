@@ -7,6 +7,7 @@
 // @match        https://www.wildberries.ru/catalog/*/search.aspx*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=wildberries.ru
 // @grant        GM_addStyle
+// @grant        GM_xmlhttpRequest
 // @require      https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js
 // ==/UserScript==
 
@@ -14,7 +15,7 @@ const limit = 300
 const concurrency = 20
 const repeatTimeout = 1000
 const numRepeat = 5
-const searchSuccess = 50
+const searchSuccess = 30
 
 // Добавляем Bootstrap CSS динамически
 const link = document.createElement('link');
@@ -123,7 +124,7 @@ const DESTINATIONS = {
 
 function createDestinationOptions() {
     return Object.keys(DESTINATIONS).map(key =>
-                                         `<option value="${key}">${key}</option>`
+        `<option value="${key}">${key}</option>`
     ).join('');
 }
 
@@ -190,15 +191,15 @@ const getBasketNumber = (productId) => {
     // Функция для генерации заголовков
     function getHeaders() {
         return {
-            'X-Custom-Header': `CustomValue${Math.random()}`, // Пример с пользовательским заголовком
             "accept": "*/*",
-            "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-            "sec-ch-ua": "\"Chromium\";v=\"118\", \"Google Chrome\";v=\"118\", \"Not=A?Brand\";v=\"99\"",
+            "accept-language": "ru-RU,ru;q=0.9",
+            "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": "\"Windows\"",
             "sec-fetch-dest": "empty",
             "sec-fetch-mode": "cors",
             "sec-fetch-site": "cross-site",
+            "x-queryid": "null"
         }
     }
 
@@ -206,14 +207,17 @@ const getBasketNumber = (productId) => {
         return `https://product-order-qnt.wildberries.ru/v2/by-nm/?nm=${ids.join(',')}`;
     }
 
-    function getSearchUrl(query, dest, page, sort) {
-        let encodedQuery = encodeURIComponent(query);
+    function getSearchUrl(sQuery, dest, page, sort) {
+        let encodedQuery = encodeURIComponent(sQuery.query);
         if (!sort) sort = 'popular'
 
-        return `https://search.wb.ru/exactmatch/ru/common/v4/search?query=${encodedQuery}&resultset=catalog&limit=${limit}&sort=${sort}&page=${page}&appType=1&lang=ru&dest=${dest.ids.join(',')}&spp=29&curr=rub& suppressSpellcheck=false&uclusters=8`;
+        let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?query=${encodedQuery}&resultset=catalog&limit=${limit}&sort=${sort}&page=${page}&appType=1&lang=ru&dest=${dest.ids.join(',')}&spp=29&curr=rub& suppressSpellcheck=false&uclusters=8`
 
-        //return `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&query=${encodedQuery}&resultset=catalog&limit=${limit}&sort=${sort}&page=${page}&appType=1&lang=ru&dest=${dest.ids.join(',')}&spp=29&curr=rub`;
-        //return `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&query=${query}&resultset=catalog&limit=${limit}&sort=popular&page=${page}&appType=1&lang=ru&dest=${dest.ids.join(',')}&spp=29&curr=rub`;
+        if (sQuery.urlParams.size > 0) {
+            url += `&${sQuery.urlParams.toString()}`
+        }
+
+        return url;
     }
 
     function getLikeBrouserPageSearchUrl(query, page, sort) {
@@ -222,22 +226,27 @@ const getBasketNumber = (productId) => {
     }
 
 
-    function getTotalUrl(query, dest) {
-        let encodedQuery = encodeURIComponent(query);
-        return `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&appType=1&curr=rub&dest=${dest.ids.join(',')}&filters=xsubject&query=${encodedQuery}&resultset=filters&spp=30&suppressSpellcheck=false`
-        //return `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&appType=1&query=${query}&resultset=filters&dest=${dest.ids.join(',')}&curr=rub&filters=xsubject&spp=30&suppressSpellcheck=false`;
-        //return `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&query=${query}&resultset=filters&appType=1&lang=ru&dest=${dest.ids.join(',')}&curr=rub`;
+    function getTotalUrl(sQuery, dest) {
+        let encodedQuery = encodeURIComponent(sQuery.query);
+        let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&appType=1&curr=rub&dest=${dest.ids.join(',')}&filters=xsubject&query=${encodedQuery}&resultset=filters&spp=30&suppressSpellcheck=false`
+        if (sQuery.urlParams.size > 0) {
+            url += `&${sQuery.urlParams.toString()}`
+        }
+        return url
     }
 
-    function getSearchQuery() {
+    function getSearchQuery(excludes = []) {
         // Разбор URL и извлечение параметра 'search'
+        excludes = ['search', 'sort', 'page', ...excludes]
         const urlParams = new URLSearchParams(window.location.search);
         const searchQuery = urlParams.get('search');
         const sort = urlParams.get('sort');
 
+        excludes.forEach(v => urlParams.delete(v))
+
         // Декодирование строки запроса
         const decodedSearchQuery = decodeURIComponent(searchQuery);
-        return { query: decodedSearchQuery, sort }
+        return { query: decodedSearchQuery, sort, urlParams }
     }
 
     function sleep(ms) {
@@ -245,22 +254,57 @@ const getBasketNumber = (productId) => {
     }
 
 
+    function fetchDataMK(url) {
+        return new Promise((resolve, reject) => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url,
+                headers: getHeaders(),
+                onreadystatechange: function (response) {
+                    if (response.readyState === 4) {
+                        if (response.status >= 200 && response.status < 300) {
+                            resolve({
+                                ok: true,
+                                json: () => (response.RESPONSE_TYPE_JSON === 'json') ? JSON.parse(response.responseText) : {}
+                            });
+                        } else {
+                            reject(new Error('Request failed with status ' + response.status));
+                        }
+                    }
+                },
+                //referrer: "https://www.wildberries.ru/catalog/0/search.aspx?search=%D0%BE%D0%B1%D0%BE%D0%B8%20%D0%B1%D1%83%D0%BC%D0%B0%D0%B6%D0%BD%D1%8B%D0%B5",
+                referrerPolicy: "no-referrer-when-downgrade",
+                mode: "cors",
+                credentials: "omit"
+            });
+        });
+    }
+
+    // Вызов функции
+    fetchData().then(data => {
+        console.log(data);
+    }).catch(error => {
+        console.error(error);
+    });
+
+
+
     async function fetchData(url, requestInit) {
-      const resp = await fetch(url, requestInit)
-      return resp
+        const resp = await fetch(url, requestInit)
+        return resp
     }
 
     async function fetchWithRetry(url, urlWhenErr = null, checkRepeat = (data) => false, numRetries = numRepeat) {
         for (let i = 0; i < numRepeat; i++) {
             let controller;
             try {
-                if ((i > 2) && (urlWhenErr)) {
-                    const resp = await fetchData(urlWhenErr)
-                    await resp.text();
-                    await sleep(repeatTimeout);
-                }
-                controller = new AbortController();
-                const response = await fetchData(url, {signal: controller.signal})//, { headers }); // Передаём заголовки в fetch
+                //                if ((i > 2) && (urlWhenErr)) {
+                //                    const resp = await fetchData(urlWhenErr)
+                //                    await resp.text();
+                //                    await sleep(repeatTimeout);
+                //                }
+                //                const response = await fetchData, {signal: controller.signal})//, { headers }); // Передаём заголовки в fetch
+                const response = await fetchDataMK(url)
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -270,7 +314,6 @@ const getBasketNumber = (productId) => {
                 }
                 return res
             } catch (err) {
-                controller.abort(); // Отмена запроса
                 console.error(`Attempt ${i + 1}: Error fetching data -`, err.message, url);
                 if (i === numRepeat - 1) throw err;
                 await sleep(repeatTimeout);
@@ -292,18 +335,18 @@ const getBasketNumber = (productId) => {
     }
 
 
-    async function fetchProducts(dest, pageObj, fetchTotalCount = false) {
-        const q = getSearchQuery()
-        const baseUrl = getSearchUrl(q.query, dest, pageObj.page, q.sort)
+    async function fetchProducts(dest, pageObj, sortQuery, fetchTotalCount = false) {
+        const q = getSearchQuery(['page', 'limit'])
+        const baseUrl = getSearchUrl(q, dest, pageObj.page, sortQuery || q.sort)
 
         let data = [];
         try {
-            const urlLikeErr = getLikeBrouserPageSearchUrl(q.query, (pageObj.page * limit) / 100, q.sort)
-            data = await fetchWithRetry(baseUrl, urlLikeErr, (data) => {
+            //const urlLikeErr = getLikeBrouserPageSearchUrl(q.query, (pageObj.page * limit) / 100, q.sort)
+            data = await fetchWithRetry(baseUrl, '', (data) => {
                 console.log('length:', data.data.products.length)
                 return (pageObj.shouldBe !== 1) && (data.data.products.length === 1)
             }
-                                       );
+            );
             if ((!data.data)) return [] //Значит завершаем
 
             if (fetchTotalCount) {
@@ -334,9 +377,11 @@ const getBasketNumber = (productId) => {
             </a>
             <div class="card-body text-center" style="padding: 0.1rem;">
                <p class="card-text" style="font-size: 0.7em;">
-                  <strong>${item.num}: ${item.pos}${item.isAd ? `←${item.adPos}` : ''}
+                  <strong>${item.num}: ${item.pos}${item.isAd ? `←${item.adPos}` : ''}<br>
+                    дост:${item.delivHour}ч<br>
+                    ${item.raw.salePriceU / 100}₽<br>
                     ${item.adCpm ? `<br>${item.adTp} ${item.adCpm}₽` : ''}
-                    ${item.raw.totalCount ? `<br>${item.raw.totalCount}` : ''}
+                    прод:${item.raw.totalCount ? `${item.raw.totalCount}<br>` : ''}
                   </strong></p>
             </div>
         </div>
@@ -360,6 +405,7 @@ const getBasketNumber = (productId) => {
                     adCpm: (v.log.cpm) ? v.log.cpm : 0,
                     adPos: (v.log.position) ? v.log.position : 0,
                     adTp: (v.log.tp) ? v.log.tp === 'b' ? 'АР' : 'АУКЦ' : '',
+                    delivHour: v.time1 + v.time2,
                     id: v.id,
                     img: getImageURLWB(v.id),
                     url: `https://www.wildberries.ru/catalog/${v.id}/detail.aspx`,
@@ -393,12 +439,12 @@ const getBasketNumber = (productId) => {
         });
     }
 
-    async function getAllProducts(dest, deepRead, status, fetchTotalCount) {
+    async function getAllProducts(dest, deepRead, status, sortQuery, fetchTotalCount) {
         let allProducts = [];
         status.textContent = '.'
 
         status.textContent = `Служебный запрос`;
-        const totalResp = await fetchWithRetry(getTotalUrl(getSearchQuery().query, dest))
+        const totalResp = await fetchWithRetry(getTotalUrl(getSearchQuery(['page', 'limit']), dest))
         const total = Math.min(totalResp.data.total, deepRead)
         console.log(`Total: ${totalResp.data.total}`)
         status.textContent = `Запрос данных`;
@@ -407,7 +453,7 @@ const getBasketNumber = (productId) => {
         let exception = null
         const fetchHandler = async (obj, indx) => {
             try {
-                const products = await fetchProducts(dest, obj, fetchTotalCount)
+                const products = await fetchProducts(dest, obj, sortQuery, fetchTotalCount)
                 totalRead += products.length
                 status.textContent = `${totalRead} из ${total}`;
                 updateProgressBar((totalRead / total) * 100)
@@ -540,7 +586,7 @@ const getBasketNumber = (productId) => {
         findNewSuccSellersButton.addEventListener('click', async () => {
             beginFetch()
             try {
-                const prod = await getAllProducts(DESTINATIONS[destinationSelect.value], parseInt(deepRead.value), statusSpan, true)
+                const prod = await getAllProducts(DESTINATIONS[destinationSelect.value], parseInt(deepRead.value), statusSpan, 'newly', true)
                 allProductsGlobal = await writeResult(prod.allProducts, outBG, (v) => searchSuccess <= v.totalCount)
                 statusSpan.textContent = prod.codeRes
             }
@@ -557,7 +603,7 @@ const getBasketNumber = (productId) => {
             beginFetch()
 
             try {
-                const prod = await getAllProducts(DESTINATIONS[destinationSelect.value], parseInt(deepRead.value), statusSpan, false)
+                const prod = await getAllProducts(DESTINATIONS[destinationSelect.value], parseInt(deepRead.value), statusSpan, '', true)
                 const supplierId = parseInt(input.value)
                 allProductsGlobal = await writeResult(prod.allProducts, outBG, (v) => supplierId === v.supplierId)
                 statusSpan.textContent = prod.codeRes
