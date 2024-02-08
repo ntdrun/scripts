@@ -15,7 +15,7 @@ const limit = 300
 const concurrency = 20
 const repeatTimeout = 1000
 const numRepeat = 5
-const searchSuccess = 30
+const searchSuccessDef = 30
 
 // Добавляем Bootstrap CSS динамически
 const link = document.createElement('link');
@@ -494,31 +494,34 @@ const getBasketNumber = (productId) => {
     waitForElement('.catalog-page__searching-results', async (element) => {
         const newDiv = document.createElement('div');
         newDiv.innerHTML = `
-            <div class="container my-3">
-                <div class="row">
+            <div class="my-3">
+                <div class="row gx-2">
                     <div class="col-sm-1">
                         <input type="text" id="myParameter" class="form-control" placeholder="ид продавца">
-                    </div>
-                    <div class="col-sm-1">
-                        <input type="number" min="300" max="18000" id="deepRead" class="form-control" placeholder="глубина чтения">
                     </div>
                     <div class="col-sm-2">
                         <select id="wbDestinationSelect" class="form-select">
                             ${createDestinationOptions()}
                         </select>
                         </div>
-                    <div class="col-sm-2">
-                        <button type="button" id="findPositionsButton" class="btn btn-primary">Сканировать</button>
+                    <div class="col-sm-1">
+                        <input type="number" min="300" max="18000" id="deepRead" class="form-control" placeholder="глубина чтения">
                     </div>
-                    <div class="col-sm-2">
-                        <button type="button" id="findNewSuccSellersButton" class="btn btn-primary">НовУсп-от${searchSuccess}</button>
+                    <div class="col-sm-1">
+                        <button type="button" id="findPositionsButton" class="btn btn-primary">Скан</button>
+                    </div>
+                    <div class="col-sm-1">
+                        <input type="number" min="1" max="1000000" id="searchSuccess"  class="form-control" placeholder="КолПродУсп" value="${searchSuccessDef}">
+                    </div>
+                    <div class="col-sm-1">
+                        <button type="button" id="findNewSuccSellersButton" class="btn btn-primary">НовУсп</button>
                     </div>
                     <div class="col-sm-1">
                         <button type="button" id="copyButton" class="btn btn-secondary" style="display: none;">
                            <i class="fa fa-copy"></i>
                         </button>
                     </div>
-                    <div  class="col-sm-3">
+                    <div  class="col-sm-2">
                         <span id="status"></span> <!-- Добавлен элемент для отображения статуса -->
                     </div>
                 </div>
@@ -537,6 +540,7 @@ const getBasketNumber = (productId) => {
         const deepRead = newDiv.querySelector('#deepRead');
         const destinationSelect = newDiv.querySelector('#wbDestinationSelect');
         const findPositionsButton = newDiv.querySelector('#findPositionsButton');
+        const searchSuccess = newDiv.querySelector('#searchSuccess');
         const findNewSuccSellersButton = newDiv.querySelector('#findNewSuccSellersButton');
         const statusSpan = newDiv.querySelector('#status');
         const outBG = newDiv.querySelector('#outBG');
@@ -551,6 +555,9 @@ const getBasketNumber = (productId) => {
         // Загрузка сохраненного значения при инициализации
         input.value = localStorage.getItem('myParameter') || '';
         input.addEventListener('blur', () => { localStorage.setItem('myParameter', input.value) });
+
+        searchSuccess.value = localStorage.getItem('searchSuccess') || searchSuccessDef;
+        searchSuccess.addEventListener('blur', () => { localStorage.setItem('searchSuccess', searchSuccess.value) });
 
         deepRead.value = localStorage.getItem('deepRead') || '';
         const deepReadCheck = () => {
@@ -587,7 +594,7 @@ const getBasketNumber = (productId) => {
             beginFetch()
             try {
                 const prod = await getAllProducts(DESTINATIONS[destinationSelect.value], parseInt(deepRead.value), statusSpan, 'newly', true)
-                allProductsGlobal = await writeResult(prod.allProducts, outBG, (v) => searchSuccess <= v.totalCount)
+                allProductsGlobal = await writeResult(prod.allProducts, outBG, (v) => searchSuccess.value <= v.totalCount)
                 statusSpan.textContent = prod.codeRes
             }
             catch (e) {
