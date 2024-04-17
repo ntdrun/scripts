@@ -11,9 +11,9 @@
 // @require      https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js
 // ==/UserScript==
 
-const limit = 300
-const concurrency = 20
-const repeatTimeout = 1000
+const limit = 100
+const concurrency = 5
+const repeatTimeout = 1500
 const numRepeat = 5
 const searchSuccessDef = 30
 
@@ -29,6 +29,44 @@ faLink.rel = 'stylesheet';
 faLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css';
 document.head.appendChild(faLink);
 
+
+
+const wbIdDate = [
+    { id: 141493346, date: new Date('2023/01/01') },
+    { id: 158515409, date: new Date('2023/07/05') },
+    { id: 175622396, date: new Date('2023/09/04') },
+    { id: 190895459, date: new Date('2023/10/22') },
+    { id: 196330686, date: new Date('2023/12/14') },
+    { id: 198425821, date: new Date('2023/12/26') },
+    { id: 199432698, date: new Date('2024/01/05') },
+    { id: 200281863, date: new Date('2024/01/14') },
+    { id: 204996659, date: new Date('2024/01/25') },
+    { id: 209748396, date: new Date('2024/02/12') },
+];
+
+
+function findDateRangeById(searchId) {
+    // Сортировка массива по ID, на случай если он не отсортирован
+    wbIdDate.sort((a, b) => a.id - b.id);
+
+    for (let i = 0; i < wbIdDate.length; i++) {
+        if (searchId < wbIdDate[i].id) {
+            if (i === 0) {
+                return `до ${wbIdDate[i].date.toLocaleDateString()}`;
+            } else {
+                const idRange = wbIdDate[i].id - wbIdDate[i - 1].id;
+                const idProgress = searchId - wbIdDate[i - 1].id;
+                const dayRange = (wbIdDate[i].date - wbIdDate[i - 1].date) / (24 * 3600 * 1000);
+                const daysToAdd = Math.round((idProgress / idRange) * dayRange);
+                const exactDate = new Date(wbIdDate[i - 1].date);
+                exactDate.setDate(exactDate.getDate() + daysToAdd);
+                return exactDate.toLocaleDateString();
+            }
+        }
+    }
+
+    return `после ${wbIdDate[wbIdDate.length - 1].date.toLocaleDateString()}`;
+}
 
 function showProgressBar() {
     const progressContainer = document.getElementById('progressContainer');
@@ -160,6 +198,29 @@ const getBasketNumber = (productId) => {
     return basket(Math.floor(productId / 1e5));
 };
 
+const genNewUserID = function () {
+    var t = Math.floor((new Date).getTime() / 1e3),
+        e = Math.floor(Math.random() * Math.pow(2, 30)).toString() + t.toString();
+    return e;
+};
+
+const formatCurrentDate = function () {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = ('0' + (d.getMonth() + 1)).slice(-2); // месяцы начинаются с 0
+    const day = ('0' + d.getDate()).slice(-2);
+    const hour = ('0' + d.getHours()).slice(-2);
+    const minute = ('0' + d.getMinutes()).slice(-2);
+    const second = ('0' + d.getSeconds()).slice(-2);
+    return `${year}${month}${day}${hour}${minute}${second}`;
+};
+
+const getQueryIdForSearch = function () {
+    const res = `qid${genNewUserID()}${formatCurrentDate()}`;
+    console.log(res)
+    return res
+};
+
 
 (function () {
     'use strict';
@@ -191,15 +252,7 @@ const getBasketNumber = (productId) => {
     // Функция для генерации заголовков
     function getHeaders() {
         return {
-            "accept": "*/*",
-            "accept-language": "ru-RU,ru;q=0.9",
-            "sec-ch-ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "cross-site",
-            "x-queryid": "null"
+            "x-queryid": getQueryIdForSearch()
         }
     }
 
@@ -211,13 +264,20 @@ const getBasketNumber = (productId) => {
         let encodedQuery = encodeURIComponent(sQuery.query);
         if (!sort) sort = 'popular'
 
-        let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?query=${encodedQuery}&resultset=catalog&limit=${limit}&sort=${sort}&page=${page}&appType=1&lang=ru&dest=${dest.ids.join(',')}&spp=29&curr=rub& suppressSpellcheck=false&uclusters=8`
+        let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?query=${encodedQuery}&resultset=catalog&limit=${limit}&sort=${sort}&lang=ru&dest=${dest.ids.join(',')}&spp=30&curr=rub&suppressSpellcheck=false`
+        if (page != 1) url += `&page=${page}`
+        //let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?query=${encodedQuery}&resultset=catalog&limit=${limit}&sort=${sort}&page=${page}&appType=1&lang=ru&dest=${dest.ids.join(',')}&spp=29&curr=rub& suppressSpellcheck=false&uclusters=8`
 
         if (sQuery.urlParams.size > 0) {
             url += `&${sQuery.urlParams.toString()}`
         }
 
-        return url;
+        return {
+            headers: {
+                referrer: `https://www.wildberries.ru/catalog/0/search.aspx?page=${page}&sort=popular&search=${encodedQuery}`
+            },
+            url
+        }
     }
 
     function getLikeBrouserPageSearchUrl(query, page, sort) {
@@ -228,7 +288,7 @@ const getBasketNumber = (productId) => {
 
     function getTotalUrl(sQuery, dest) {
         let encodedQuery = encodeURIComponent(sQuery.query);
-        let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&appType=1&curr=rub&dest=${dest.ids.join(',')}&filters=xsubject&query=${encodedQuery}&resultset=filters&spp=30&suppressSpellcheck=false`
+        let url = `https://search.wb.ru/exactmatch/ru/common/v4/search?TestGroup=no_test&TestID=no_test&curr=rub&dest=${dest.ids.join(',')}&filters=xsubject&query=${encodedQuery}&resultset=filters&spp=30&suppressSpellcheck=false`
         if (sQuery.urlParams.size > 0) {
             url += `&${sQuery.urlParams.toString()}`
         }
@@ -254,12 +314,24 @@ const getBasketNumber = (productId) => {
     }
 
 
-    function fetchDataMK(url) {
+    function fetchDataMK(reqObj) {
         return new Promise((resolve, reject) => {
+            let url = ''
+            let headers = getHeaders()
+
+            if (typeof reqObj === 'string') {
+                url = reqObj
+            } else {
+                url = reqObj.url
+                if (reqObj.headers) {
+                    headers = { ...headers, ...reqObj.headers }
+                }
+            }
+
             GM_xmlhttpRequest({
                 method: "GET",
                 url,
-                headers: getHeaders(),
+                headers,
                 onreadystatechange: function (response) {
                     if (response.readyState === 4) {
                         if (response.status >= 200 && response.status < 300) {
@@ -272,22 +344,13 @@ const getBasketNumber = (productId) => {
                         }
                     }
                 },
-                //referrer: "https://www.wildberries.ru/catalog/0/search.aspx?search=%D0%BE%D0%B1%D0%BE%D0%B8%20%D0%B1%D1%83%D0%BC%D0%B0%D0%B6%D0%BD%D1%8B%D0%B5",
+                referrer: "https://www.wildberries.ru/catalog/0/search.aspx?search=%D0%BE%D0%B1%D0%BE%D0%B8%20%D0%B1%D1%83%D0%BC%D0%B0%D0%B6%D0%BD%D1%8B%D0%B5",
                 referrerPolicy: "no-referrer-when-downgrade",
                 mode: "cors",
                 credentials: "omit"
             });
         });
     }
-
-    // Вызов функции
-    fetchData().then(data => {
-        console.log(data);
-    }).catch(error => {
-        console.error(error);
-    });
-
-
 
     async function fetchData(url, requestInit) {
         const resp = await fetch(url, requestInit)
@@ -377,12 +440,14 @@ const getBasketNumber = (productId) => {
             </a>
             <div class="card-body text-center" style="padding: 0.1rem;">
                <p class="card-text" style="font-size: 0.7em;">
-                  <strong>${item.num}: ${item.pos}${item.isAd ? `←${item.adPos}` : ''}<br>
+                    <strong>${item.num}: ${item.pos}${item.isAd ? `←${item.adPos}` : ''}<br>
                     дост:${item.delivHour}ч<br>
                     ${item.raw.salePriceU / 100}₽<br>
-                    ${item.adCpm ? `<br>${item.adTp} ${item.adCpm}₽` : ''}
-                    прод:${item.raw.totalCount ? `${item.raw.totalCount}<br>` : ''}
-                  </strong></p>
+                    ${item.adCpm ? `${item.adTp} ${item.adCpm}₽<br>` : ''}
+                    прод:${item.raw.totalCount ? `${item.raw.totalCount}<br>` : '0'}
+                    </strong>
+                    ${findDateRangeById(item.id)}
+                  </p>
             </div>
         </div>
     </div>

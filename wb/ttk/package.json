@@ -1,0 +1,19 @@
+{
+  "name": "ttk",
+  "version": "0.0.2",
+  "type": "module",
+  "description": "TTK scripts",
+  "dependencies": {
+  },
+  "devDependencies": {
+  },
+  "scripts": {
+    "lint": "eslint *.js"
+    "lint": "eslint *.js"
+  },
+  "engines": {
+    "node": ">=17.0.0"
+  },
+  "author": "ASIN Expert",
+  "license": "ISC"
+}
