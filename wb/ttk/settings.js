@@ -42,6 +42,7 @@ const AppSh = {
     analiticsTokWB: "WBApiKeyAnalitics",
     adTokWb: "WBApiKeyAd",
     depthRead: "КвоДнейСчитывания",
+    progIsOn: "ПрограммаЗапущ"
   }
 }
 
@@ -60,7 +61,7 @@ const AdSh = {
 }
 
 const TTKSh = {
-  name: 'ТТК',
+  name: 'ТТК (auto)',
   headerLen: 1,
   idx: {
     Дата: 1,

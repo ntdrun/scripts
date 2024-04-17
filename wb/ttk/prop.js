@@ -4,6 +4,7 @@
  * @property {string} analiticsTokWB
  * @property {string} version
  * @property {number} depthRead
+ * @property {boolean} progIsOn - Программа работает
  */
 
 class Properties {
@@ -19,7 +20,8 @@ class Properties {
       adTokWb: map.get(AppSh.key.adTokWb)[0],
       analiticsTokWB: map.get(AppSh.key.analiticsTokWB)[0],
       version: map.get(AppSh.key.version)[0],
-      depthRead: map.get(AppSh.key.depthRead)[0]
+      depthRead: map.get(AppSh.key.depthRead)[0],
+      progIsOn: map.get(AppSh.key.progIsOn)[0],
     }
   }
 }

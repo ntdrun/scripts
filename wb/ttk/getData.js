@@ -9,6 +9,9 @@ function getAnaliticsByNextDayMain(spreadsheetUrl = sh) {
   spreadsheetUrl = sh
   const spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl)
   const props = Properties.Read(spreadsheet)
+
+  if (!props.progIsOn) return
+
   let days = props.depthRead
 
   const sheet = spreadsheet.getSheetByName((TTKSh.name))
