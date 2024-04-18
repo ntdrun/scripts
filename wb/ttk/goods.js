@@ -1,9 +1,9 @@
 /**
  * @typedef {Object} GoodsObj
  * @property {Map} mapBySKU
-  * @property {Map} mapByGroup
+ * @property {Map} mapByGroup
+ * @property {Function} getCatByGroupName
  */
-
 class Goods {
   /**
    * Получить информацию из справочника товаров
@@ -27,7 +27,13 @@ class Goods {
 
     return {
       mapBySKU,
-      mapByGroup
+      mapByGroup,
+      getCatByGroupName: (nameGroup) => {
+        const vals = mapByGroup.get(nameGroup)
+        if (!vals) return ""
+        if (!vals.length) return ""
+        return vals[0][GoodsSh.idx.Категория - 1]
+      }
     }
   }
 }

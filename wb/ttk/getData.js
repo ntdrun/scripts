@@ -4,29 +4,99 @@ function getAnaliticsByPrevDayMain(spreadsheetUrl = sh) {
   getAnaliticsByPrevDay(spreadsheetUrl, 1)
 }
 
-//Добавляет следующий день от последнего
-function getAnaliticsByNextDayMain(spreadsheetUrl = sh) {
+
+function autoRead(spreadsheetUrl = sh) {
   spreadsheetUrl = sh
   const spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl)
   const props = Properties.Read(spreadsheet)
 
   if (!props.progIsOn) return
 
-  let days = props.depthRead
+  getAnaliticsByNextDayMain(spreadsheet, props)
+}
+
+
+/**
+ * Добавляет следующий день от последнего
+ * @param {AppProperty} props - Настройки
+ * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
+ */
+function getAnaliticsByNextDayMain(spreadsheet, props) {
+  const spreadsheetUrl = sh
+
+  spreadsheet = spreadsheet || SpreadsheetApp.openByUrl(sh)
+  props = props || Properties.Read(spreadsheet)
+
 
   const sheet = spreadsheet.getSheetByName((TTKSh.name))
-  const lRow = sheet.getLastRow()
-  if (lRow !== TTKSh.headerLen) {
-    let values = sheet.getRange(lRow, 1).getValues();
-    const differenceInMilliseconds = new Date().getTime() - values[0][TTKSh.idx.Дата - 1].getTime()
+  const maxCol = Math.max(...Object.values(TTKSh.idx))
 
-    let differenceInDays = Math.round(differenceInMilliseconds / (1000 * 3600 * 24))
-    if (differenceInDays <= 1) return
-    days = differenceInDays - 1
-
+  const removeByDayRows = (date) => {
+    const sheet = spreadsheet.getSheetByName(TTKSh.name)
+    SheetUtils.clearFromDate(sheet, TTKSh.idx.Дата - 1, date, 1, maxCol, TTKSh.headerLen)
+    Utilities.sleep(100)
   }
 
-  getAnaliticsByPrevDay(spreadsheetUrl, days)
+  //Не нужно считывать
+
+  const getDayRead = () => {
+    const lRow = sheet.getLastRow()
+    // const res = {
+    //   days: props.depthRead,
+    //   action: 'none'// 'repeat' - обычно после удаления данных, 'req' - необходим запрос
+    // }
+
+    if (lRow !== TTKSh.headerLen) {
+      let values = sheet.getRange(lRow, 1, 1, maxCol).getValues();
+
+      let lastDayDate = values[0][TTKSh.idx.Дата - 1]
+      if (!(lastDayDate instanceof Date && !isNaN(lastDayDate.getTime()))) {
+        const s = `Последняя строчка не является валидной. Нельзя в  отчет ${TTKSh.name} вносить изменения вручную`
+        console.log(s)
+        throw new Error(s)
+      }
+
+      const now = new Date(new Date().setHours(0, 0, 0, 0))
+      lastDayDate = new Date(lastDayDate.setHours(0, 0, 0, 0))
+
+      const lastRead = new Date(values[0][TTKSh.idx.ДатаВремяСчит - 1] || 0)
+
+      let differenceInDays = Utils.diffDays(now, lastDayDate)
+      let differenceInLastReadDays = Utils.diffDays(now, new Date(lastRead.setHours(0, 0, 0, 0)))
+
+
+      //1. Если надо считать  дату за предыдущий день (в нормальном режиме) то ее считываем только после  ReadAfterHour часа
+      if ((differenceInDays === 2) && (new Date().getHours() < ReadAfterHour)) return { action: 'none' }
+
+      //2. Проверяем есть ли текущие данные это когда Дата == ДатаВремяСчит
+      //Это говорит что они были считаны в один и тотже день для архивныех данных данные должны быть считаны на след день
+      if (((differenceInDays >= 1)) && (differenceInDays === differenceInLastReadDays)) {
+        removeByDayRows(lastDayDate)
+        return { action: 'repeat' }
+      }
+
+      //3. Если текущий день и есть текущие данные это мы определяем по differenceInDays === differenceInLastReadDays то тоже их удаляем
+      if (((differenceInDays === 0)) && (differenceInDays === differenceInLastReadDays)) {
+        removeByDayRows(lastDayDate)
+        return { action: 'repeat' }
+      }
+
+      return {
+        days: differenceInDays - 1,
+        action: 'req'
+      }
+    } else {
+      return {
+        days: props.depthRead,
+        action: 'req'
+      }
+    }
+  }
+
+  let res = getDayRead()
+  if (res.action === 'none') return
+  if (res.action === 'repeat') res = getDayRead()
+  if (res.action === 'req') getAnaliticsByPrevDay(spreadsheetUrl, res.days)
 }
 
 function getAnaliticsByCurDayMain(spreadsheetUrl = sh) {
@@ -38,23 +108,27 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
     const spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl)
     const props = Properties.Read(spreadsheet)
     const plans = Plans.Read(spreadsheet)
+    const goods = Goods.Read(spreadsheet)
 
     const adsCost = getAdCostByDay(props, spreadsheet, prevDay)
     const mapTrafPlan = TTK.calcTraficPlan(spreadsheet, plans, prevDay)
 
-    const res = getAnaliticsInfoByDay(props, spreadsheet, prevDay)
+    const res = getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay)
 
     const maxCol = Math.max(...Object.values(TTKSh.idx))
 
-
     const date = res[0].Дата
+    const now = Date.now()
     //Выводим инфу по артикулам
     const vals = new Array(res.length)
     for (let i = 0; i < res.length; i++) {
       vals[i] = new Array(maxCol)
       vals[i][TTKSh.idx.Дата - 1] = WBApi.toDateDD_MM_YYSheet(date)
+      vals[i][TTKSh.idx.ДатаВремяСчит - 1] = now
       vals[i][TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.sku
       vals[i][TTKSh.idx.ГруппаТоваров - 1] = res[i].ГруппаТоваров
+      vals[i][TTKSh.idx.Категория - 1] = res[i].Категория
+      vals[i][TTKSh.idx.АртикулWB - 1] = res[i].АртикулWB
       vals[i][TTKSh.idx.АртикулПрод - 1] = res[i].АртикулПрод
       vals[i][TTKSh.idx.ОстаткиСПшт - 1] = res[i].ОстаткиСПшт
       vals[i][TTKSh.idx.ОстатикиWBшт - 1] = res[i].ОстатикиWBшт
@@ -67,6 +141,8 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
       vals[i][TTKSh.idx.ЗаказовШт - 1] = res[i].ЗаказовШт
       vals[i][TTKSh.idx.ВыкуповВыручка - 1] = res[i].ВыкуповВыручка
       vals[i][TTKSh.idx.Выкупов - 1] = res[i].Выкупов
+      vals[i][TTKSh.idx.ОтменВыручка - 1] = res[i].ОтменВыручка
+      vals[i][TTKSh.idx.Отмен - 1] = res[i].Отмен
     }
 
     //Сортируем по 2 полям
@@ -84,7 +160,9 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
       const plan = plans.get(groupsName[i])
       valsGroup[i] = new Array(maxCol)
       valsGroup[i][TTKSh.idx.Дата - 1] = WBApi.toDateDD_MM_YYSheet(date)
+      valsGroup[i][TTKSh.idx.ДатаВремяСчит - 1] = now
       valsGroup[i][TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.group
+      valsGroup[i][TTKSh.idx.Категория - 1] = goods.getCatByGroupName(groupsName[i])
 
       valsGroup[i][TTKSh.idx.ГруппаТоваров - 1] = groupsName[i]
 
@@ -123,8 +201,10 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
       adObj.adGroup.forEach(ad => {
         const g = new Array(maxCol)
         g[TTKSh.idx.Дата - 1] = WBApi.toDateDD_MM_YYSheet(date)
+        g[TTKSh.idx.ДатаВремяСчит - 1] = now
         g[TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.ad
         g[TTKSh.idx.ГруппаТоваров - 1] = gName
+        g[TTKSh.idx.Категория - 1] = goods.getCatByGroupName(gName)
         g[TTKSh.idx.РекСлили - 1] = ad.sum || 0
         g[TTKSh.idx.РекПросм - 1] = ad.views || 0
         g[TTKSh.idx.РекПерех - 1] = ad.clicks || 0
@@ -230,11 +310,13 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
  * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
  * @param {number} prevDay - Индекс дня
 */
-function getAnaliticsInfoByDay(props, spreadsheet, prevDay) {
-  const def = (date, nameGroup, sku) => {
+function getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay) {
+  const def = (date, nameGroup, sku, skuWB, cat) => {
     return {
       Дата: date,
       ГруппаТоваров: nameGroup,
+      Категория: cat,
+      АртикулWB: skuWB,
       АртикулПрод: sku,
       ОстаткиСПшт: 0,
       ОстатикиWBшт: 0,
@@ -247,11 +329,13 @@ function getAnaliticsInfoByDay(props, spreadsheet, prevDay) {
       ЗаказовШт: 0,
       Заказов: 0,
       ВыкуповВыручка: 0,
-      Выкупов: 0
+      Выкупов: 0,
+      ОтменВыручка: 0,
+      Отмен: 0
+
     }
   }
 
-  const goods = Goods.Read(spreadsheet)
   let res = getFunnelDataByDay(props, prevDay)
 
   const skuData = []
@@ -263,7 +347,7 @@ function getAnaliticsInfoByDay(props, spreadsheet, prevDay) {
     const groupInfo = goods.mapByGroup.get(goodsInfo[GoodsSh.idx.Группа - 1])
     const count = goodsInfo[GoodsSh.idx.Кво - 1]
 
-    const g = def(res.date, goodsInfo[GoodsSh.idx.Группа - 1], card.vendorCode)
+    const g = def(res.date, goodsInfo[GoodsSh.idx.Группа - 1], card.vendorCode, goodsInfo[GoodsSh.idx.АртикулWB - 1], goodsInfo[GoodsSh.idx.Категория - 1])
     g.КвоВГруппе = groupInfo.length
     g.Заказов += card.ordersCount
     g.ЗаказовШт += card.ordersCount * count
@@ -272,6 +356,8 @@ function getAnaliticsInfoByDay(props, spreadsheet, prevDay) {
     g.Корзина += card.addToCartCount
     g.ВыкуповВыручка += card.buyoutsSumRub
     g.Выкупов += card.buyoutsCount
+    g.ОтменВыручка += card.cancelSumRub
+    g.Отмен += card.cancelCount
     //Остатки в ВБ только текущие
     g.ОстатикиWBшт += card.stocksWb * count
     g.ОстаткиСПшт += card.stocksMp * count

@@ -111,4 +111,43 @@ class SheetUtils {
     return groupedData;
   }
 
+
+  /**
+     * Очистить строки с конца списка до даты.
+     * @param {SpreadsheetApp.Sheet} sheet - лист
+     * @param {number} indexOfDate - индекс где расположена дата в массиве
+     * @param {Date} fromDate - До какой даты очищаем
+     * @param {number} startCol - С какого номера колонки считыываем данные из Range. Счет с 1
+     * @param {number} endCol - По какой номер колонки считываем данные из Range. Счет с 1
+     * @param {number} headerLen - длинна загаловка
+     */
+  static clearFromDate(sheet, indexOfDate, fromDate, startCol, endCol, headerLen) {
+    const date = fromDate.setDate(fromDate.getDate() - 1) // Отнимаем один день
+
+    const lastIndex = sheet.getLastRow()
+    let fromIndex = lastIndex
+    let isbreak = false
+    const rows = SheetUtils.readRowsFromEnd(sheet, lastIndex, startCol, endCol, 100, headerLen)
+    for (let { values } of rows) {
+      for (let i = values.length - 1; i >= 0; i--) {
+        const row = values[i]
+        const d = row[indexOfDate]
+        if (!d) continue
+        let dateInRow = d.setHours(0, 0, 0, 0)
+        if (date < dateInRow) fromIndex--
+        else if (date >= dateInRow) {
+          isbreak = true
+          break
+        }
+      }
+      if (isbreak) break
+    }
+
+    if (fromIndex != lastIndex) {
+      sheet.getRange(fromIndex + 1, 1, lastIndex - fromIndex, sheet.getLastColumn()).clearContent();
+    }
+
+  }
+
+
 }

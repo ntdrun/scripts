@@ -7,6 +7,19 @@
 
 
 class Utils {
+
+  /**
+  * Посчитать количество дней между двумя датами
+  * @param {Date} freshDate - Дата из которой будет вычитаться
+  * @param {Date} olderDate - Диапазон листа
+  * @returns {number} Количество дней
+  */
+  static diffDays(freshDate, olderDate) {
+    const differenceInMilliseconds = freshDate.getTime() - olderDate.getTime()
+    let differenceInDays = Math.round(differenceInMilliseconds / (1000 * 3600 * 24))
+    return differenceInDays
+  }
+
   /**
   * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
   * @param {string} name - Имя листа
