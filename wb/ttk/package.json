@@ -8,8 +8,8 @@
   "devDependencies": {
   },
   "scripts": {
-    "lint": "eslint *.js"
-    "lint": "eslint *.js"
+    "lint": "eslint *.js",
+    "pull": "npx clasp pull"
   },
   "engines": {
     "node": ">=17.0.0"

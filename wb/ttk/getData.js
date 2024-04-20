@@ -1,10 +1,5 @@
 const sh = "https://docs.google.com/spreadsheets/d/1RGoH_VERn-_xV-Lqtm3m0ebE5sC2A-pLIdOmEQiY3Ro/edit"
 
-function getAnaliticsByPrevDayMain(spreadsheetUrl = sh) {
-  getAnaliticsByPrevDay(spreadsheetUrl, 1)
-}
-
-
 function autoRead(spreadsheetUrl = sh) {
   spreadsheetUrl = sh
   const spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl)
@@ -12,41 +7,102 @@ function autoRead(spreadsheetUrl = sh) {
 
   if (!props.progIsOn) return
 
-  getAnaliticsByNextDayMain(spreadsheet, props)
-}
 
+  //Если прочитали часовые то следущие будем читать в следующий раз за сутки это сделать успеем
+  //это делается тк есть лимит запросов к WB Api
+  if (writeTTKDataHourNext(spreadsheet)) return
+
+  writeTTKDataDayNext(spreadsheet, props)
+}
 
 /**
  * Добавляет следующий день от последнего
  * @param {AppProperty} props - Настройки
  * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
+ * returns {boolean}
  */
-function getAnaliticsByNextDayMain(spreadsheet, props) {
-  const spreadsheetUrl = sh
+function writeTTKDataHourNext(spreadsheet) {
+  try {
+    ___begin_perfom('writeTTKDataHourNext')
+    const spreadsheetUrl = sh
 
-  spreadsheet = spreadsheet || SpreadsheetApp.openByUrl(sh)
-  props = props || Properties.Read(spreadsheet)
+    spreadsheet = spreadsheet || SpreadsheetApp.openByUrl(sh)
+    Utils.throwCheckSetting(spreadsheet)
 
+    const getHourRead = () => {
+      const sheet = spreadsheet.getSheetByName((TTKHourSh.name))
+      const maxCol = Math.max(...Object.values(TTKHourSh.idx))
+      const lRow = sheet.getLastRow()
 
-  const sheet = spreadsheet.getSheetByName((TTKSh.name))
-  const maxCol = Math.max(...Object.values(TTKSh.idx))
+      if (lRow === TTKHourSh.headerLen) return { action: 'req' }
 
-  const removeByDayRows = (date) => {
-    const sheet = spreadsheet.getSheetByName(TTKSh.name)
-    SheetUtils.clearFromDate(sheet, TTKSh.idx.Дата - 1, date, 1, maxCol, TTKSh.headerLen)
-    Utilities.sleep(100)
+      let values = sheet.getRange(lRow, 1, 1, maxCol).getValues();
+
+      let lastDayDate = values[0][TTKSh.idx.Дата - 1]
+      if (!(lastDayDate instanceof Date && !isNaN(lastDayDate.getTime()))) {
+        throw new Error(`Последняя строчка не является валидной. Нельзя в  отчете ${TTKHourSh.name} вносить изменения вручную`)
+      }
+      const now = new Date() //new Date('2024-04-20T00:20:30') //проверка перехода на сутки
+      const nowRound = new Date(now.setMinutes(0, 0, 0))
+      const isFirstHour = ((nowRound.getHours() === 0) && (nowRound.getMinutes() === 0)) ? true : false
+
+      const diffHours = Utils.diffHour(nowRound, lastDayDate)
+      if ((diffHours > 0) && (new Date().getMinutes() > ReadAfterMinutes)) return { action: 'req', days: isFirstHour ? 1 : 0 }
+      else return { action: 'none' }
+    }
+
+    const res = getHourRead()
+    if (res.action === 'none') return false
+    const r = readAllDataFromApi(spreadsheetUrl, res.days)
+    writeTTKDataImpl(r, res.days, TTKHourSh.name, false)
+
+    console.log(`writeTTKDataHourNext read ${___end_perfom('writeTTKDataHourNext')}ms`)
+
+    return true
   }
+  catch (e) {
+    Log.write(spreadsheet, LogType.Err, e.message)
+  }
+}
 
-  //Не нужно считывать
+/**
+ * @typedef {Object} WriteTTKDataNext
+ * @property {'none' | 'repeat' | 'req'} action - 'none' - ничего, 'repeat' - обычно после удаления данных, 'req' - необходим запрос
+ * @property {number} days - день который надо читать 0 текущиий, 1 предыдущий
+ * @property {ResultAllFromApi?} resApi
+*/
 
-  const getDayRead = () => {
-    const lRow = sheet.getLastRow()
-    // const res = {
-    //   days: props.depthRead,
-    //   action: 'none'// 'repeat' - обычно после удаления данных, 'req' - необходим запрос
-    // }
+/**
+ * Добавляет следующий день от последнего
+ * @param {AppProperty} props - Настройки
+ * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
+ * @property {ResultAllFromApi} resApi
+ * @returns {void}
+ */
+function writeTTKDataDayNext(spreadsheet, props, resApi) {
+  try {
+    const spreadsheetUrl = sh
+    ___begin_perfom('writeTTKDataDayNext')
 
-    if (lRow !== TTKSh.headerLen) {
+    spreadsheet = spreadsheet || SpreadsheetApp.openByUrl(sh)
+    Utils.throwCheckSetting(spreadsheet)
+    props = props || Properties.Read(spreadsheet)
+
+
+    const sheet = spreadsheet.getSheetByName((TTKSh.name))
+    const maxCol = Math.max(...Object.values(TTKSh.idx))
+
+    const removeByDayRows = (date) => {
+      SheetUtils.clearFromDate(sheet, TTKSh.idx.Дата - 1, date, 1, maxCol, TTKSh.headerLen)
+      Utilities.sleep(100)
+    }
+
+    //Не нужно считывать
+    const getDayRead = () => {
+      const lRow = sheet.getLastRow()
+
+      if (lRow === TTKSh.headerLen) return { days: props.depthRead, action: 'req' }
+
       let values = sheet.getRange(lRow, 1, 1, maxCol).getValues();
 
       let lastDayDate = values[0][TTKSh.idx.Дата - 1]
@@ -85,64 +141,102 @@ function getAnaliticsByNextDayMain(spreadsheet, props) {
         days: differenceInDays - 1,
         action: 'req'
       }
-    } else {
-      return {
-        days: props.depthRead,
-        action: 'req'
-      }
     }
+
+    let res = getDayRead()
+    if (res.action === 'none') return
+    if (res.action === 'repeat') res = getDayRead()
+    if (res.action === 'req') {
+      resApi = resApi || readAllDataFromApi(spreadsheetUrl, res.days)
+      writeTTKDataImpl(resApi, res.days, TTKSh.name, true)
+      res.resApi = resApi
+    }
+    console.log(`writeTTKDataDayNext read ${___end_perfom('writeTTKDataHourNext')}ms`)
+
   }
-
-  let res = getDayRead()
-  if (res.action === 'none') return
-  if (res.action === 'repeat') res = getDayRead()
-  if (res.action === 'req') getAnaliticsByPrevDay(spreadsheetUrl, res.days)
+  catch (e) {
+    Log.write(spreadsheet, LogType.Err, e.message)
+  }
 }
 
-function getAnaliticsByCurDayMain(spreadsheetUrl = sh) {
-  getAnaliticsByPrevDay(spreadsheetUrl, 0)
-}
+/**
+ * @typedef {Object} ResultAllFromApi
+ * @property {SpreadsheetApp.Spreadsheet} spreadsheet
+ * @property {AppProperty} props
+ * @property {GoodsObj} goods
+ * @property {AdCostMap} adsCost
+ * @property {AnaliticsInfo[]} anal
 
-function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
+ * @param {string} spreadsheetUrl - URL рабочей книги
+ * @returns {ResultAllFromApi} 
+ */
+function readAllDataFromApi(spreadsheetUrl, prevDay) {
   try {
     const spreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl)
+
     const props = Properties.Read(spreadsheet)
     const plans = Plans.Read(spreadsheet)
     const goods = Goods.Read(spreadsheet)
 
     const adsCost = getAdCostByDay(props, spreadsheet, prevDay)
-    const mapTrafPlan = TTK.calcTraficPlan(spreadsheet, plans, prevDay)
+    const anal = getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay)
 
-    const res = getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay)
+    return {
+      spreadsheet,
+      props,
+      plans,
+      goods,
+      adsCost,
+      anal
+    }
+  }
+  catch (e) {
+    throw e
+  }
+}
+
+/**
+ * Записать данные в лист
+ * @property {ResultAllFromApi} resApi
+ * @property {number} prevDay
+ * @property {string} nameSheet
+ * 
+ */
+function writeTTKDataImpl(resApi, prevDay, nameSheet, forDay = true) {
+  try {
+    /** @type {ResultAllFromApi} */
+    const { spreadsheet, props, plans, goods, adsCost, anal } = resApi
+    const mapTrafPlan = TTK.calcTraficPlan(spreadsheet, plans, prevDay)
 
     const maxCol = Math.max(...Object.values(TTKSh.idx))
 
-    const date = res[0].Дата
     const now = Date.now()
+    const date = forDay ? WBApi.toDateDD_MM_YYSheet(anal[0].Дата) : WBApi.toDateDD_MM_YY_HH_MM_SSSheet(new Date(now).setMinutes(0, 0, 0))
+
     //Выводим инфу по артикулам
-    const vals = new Array(res.length)
-    for (let i = 0; i < res.length; i++) {
+    const vals = new Array(anal.length)
+    for (let i = 0; i < anal.length; i++) {
       vals[i] = new Array(maxCol)
-      vals[i][TTKSh.idx.Дата - 1] = WBApi.toDateDD_MM_YYSheet(date)
+      vals[i][TTKSh.idx.Дата - 1] = date
       vals[i][TTKSh.idx.ДатаВремяСчит - 1] = now
       vals[i][TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.sku
-      vals[i][TTKSh.idx.ГруппаТоваров - 1] = res[i].ГруппаТоваров
-      vals[i][TTKSh.idx.Категория - 1] = res[i].Категория
-      vals[i][TTKSh.idx.АртикулWB - 1] = res[i].АртикулWB
-      vals[i][TTKSh.idx.АртикулПрод - 1] = res[i].АртикулПрод
-      vals[i][TTKSh.idx.ОстаткиСПшт - 1] = res[i].ОстаткиСПшт
-      vals[i][TTKSh.idx.ОстатикиWBшт - 1] = res[i].ОстатикиWBшт
-      vals[i][TTKSh.idx.Выручка - 1] = res[i].Выручка
-      vals[i][TTKSh.idx.Прибыль - 1] = res[i].Прибыль
-      vals[i][TTKSh.idx.Переходов - 1] = res[i].Переходов
-      vals[i][TTKSh.idx.РекОтПродажи - 1] = res[i].РекОтПродажи
-      vals[i][TTKSh.idx.Корзин - 1] = res[i].Корзина
-      vals[i][TTKSh.idx.Заказов - 1] = res[i].Заказов
-      vals[i][TTKSh.idx.ЗаказовШт - 1] = res[i].ЗаказовШт
-      vals[i][TTKSh.idx.ВыкуповВыручка - 1] = res[i].ВыкуповВыручка
-      vals[i][TTKSh.idx.Выкупов - 1] = res[i].Выкупов
-      vals[i][TTKSh.idx.ОтменВыручка - 1] = res[i].ОтменВыручка
-      vals[i][TTKSh.idx.Отмен - 1] = res[i].Отмен
+      vals[i][TTKSh.idx.ГруппаТоваров - 1] = anal[i].ГруппаТоваров
+      vals[i][TTKSh.idx.Категория - 1] = anal[i].Категория
+      vals[i][TTKSh.idx.АртикулWB - 1] = anal[i].АртикулWB
+      vals[i][TTKSh.idx.АртикулПрод - 1] = anal[i].АртикулПрод
+      vals[i][TTKSh.idx.ОстаткиСПшт - 1] = anal[i].ОстаткиСПшт
+      vals[i][TTKSh.idx.ОстатикиWBшт - 1] = anal[i].ОстатикиWBшт
+      vals[i][TTKSh.idx.Выручка - 1] = anal[i].Выручка
+      vals[i][TTKSh.idx.Прибыль - 1] = anal[i].Прибыль
+      vals[i][TTKSh.idx.Переходов - 1] = anal[i].Переходов
+      vals[i][TTKSh.idx.РекОтПродажи - 1] = anal[i].РекОтПродажи
+      vals[i][TTKSh.idx.Корзин - 1] = anal[i].Корзина
+      vals[i][TTKSh.idx.Заказов - 1] = anal[i].Заказов
+      vals[i][TTKSh.idx.ЗаказовШт - 1] = anal[i].ЗаказовШт
+      vals[i][TTKSh.idx.ВыкуповВыручка - 1] = anal[i].ВыкуповВыручка
+      vals[i][TTKSh.idx.Выкупов - 1] = anal[i].Выкупов
+      vals[i][TTKSh.idx.ОтменВыручка - 1] = anal[i].ОтменВыручка
+      vals[i][TTKSh.idx.Отмен - 1] = anal[i].Отмен
     }
 
     //Сортируем по 2 полям
@@ -159,7 +253,7 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
       const ad = adsCost.get(groupsName[i]) || {}
       const plan = plans.get(groupsName[i])
       valsGroup[i] = new Array(maxCol)
-      valsGroup[i][TTKSh.idx.Дата - 1] = WBApi.toDateDD_MM_YYSheet(date)
+      valsGroup[i][TTKSh.idx.Дата - 1] = date
       valsGroup[i][TTKSh.idx.ДатаВремяСчит - 1] = now
       valsGroup[i][TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.group
       valsGroup[i][TTKSh.idx.Категория - 1] = goods.getCatByGroupName(groupsName[i])
@@ -200,7 +294,7 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
     adsCost.forEach((adObj, gName) => {
       adObj.adGroup.forEach(ad => {
         const g = new Array(maxCol)
-        g[TTKSh.idx.Дата - 1] = WBApi.toDateDD_MM_YYSheet(date)
+        g[TTKSh.idx.Дата - 1] = date
         g[TTKSh.idx.ДатаВремяСчит - 1] = now
         g[TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.ad
         g[TTKSh.idx.ГруппаТоваров - 1] = gName
@@ -217,7 +311,7 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
       })
     })
 
-    var sheet = spreadsheet.getSheetByName(TTKSh.name);
+    var sheet = spreadsheet.getSheetByName(nameSheet);
     var lastRow = sheet.getLastRow();
     if (lastRow > 0) lastRow += 1;
 
@@ -226,16 +320,36 @@ function getAnaliticsByPrevDay(spreadsheetUrl, prevDay) {
     range.setValues([...vals, ...adGroup, ...valsGroup]);
   }
   catch (e) {
-    Utils.showError(e.message)
+    throw e
   }
 }
 
 
 /**
+ * @typedef {Object} AdGroupItem
+ * @property {string} sum - Сумма в рублях
+ * @property {string} adId - идентификатор рекламы
+ * @property {string} cpc
+ * @property {number} ctr
+ * @property {boolean} views
+ * @property {boolean} clicks
+ * @property {boolean} countAd - Количество рекламируемых артикулов
+ * @property {boolean} avg_position
+
+ * @typedef {Object} AdCostByDay
+ * @property {AdGroupItem[]} adGroup
+ * @property {string} name
+ * @property {number} clicksOnGroup
+ * @property {number} cpcOnGroup
+ * @property {string} adIds
+ * 
+ * @typedef {Map<string, AdCostByDay>} AdCostMap
+
  * Получить рекламную информацию по группе
  * @param {AppProperty} props - Настройки
  * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
  * @param {number} prevDay - Индекс дня
+ * @returns {AdCostMap}
 */
 function getAdCostByDay(props, spreadsheet, prevDay) {
   const shd = Utils.getDataSheet(spreadsheet, AdSh.name, AdSh.rangeRead)
@@ -258,6 +372,7 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
   for (let i = 0; i < values.length; i++) {
     const v = values[i]
     const adInfo = (curStat) => {
+      /** @type {AdGroupItem} */
       const res = {
         sum: curStat.sum,
         adId: curStat.advertId,
@@ -305,10 +420,31 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
 
 
 /**
+ * @typedef {Object} AnaliticsInfo
+ * @property {string} Дата - Сумма в рублях
+ * @property {string} ГруппаТоваров - идентификатор рекламы
+ * @property {string} АртикулWB
+ * @property {number} АртикулПрод
+ * @property {boolean} ОстаткиСПшт
+ * @property {boolean} ОстатикиWBшт
+ * @property {boolean} Выручка
+ * @property {boolean} Прибыль
+ * @property {boolean} Переходов
+ * @property {boolean} РекОтПродажи
+ * @property {boolean} Корзина
+ * @property {boolean} Заказов
+ * @property {boolean} ЗаказовШт
+ * @property {boolean} ВыкуповВыручка
+ * @property {boolean} Выкупов
+ * @property {boolean} ОтменВыручка
+ * @property {boolean} Отмен
+
+
  * Получить рекламную информацию по группе
  * @param {AppProperty} props - Настройки
  * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
  * @param {number} prevDay - Индекс дня
+ * @returns {AnaliticsInfo[]}
 */
 function getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay) {
   const def = (date, nameGroup, sku, skuWB, cat) => {
@@ -327,12 +463,10 @@ function getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay) {
       Корзина: 0,
       Заказов: 0,
       ЗаказовШт: 0,
-      Заказов: 0,
       ВыкуповВыручка: 0,
       Выкупов: 0,
       ОтменВыручка: 0,
       Отмен: 0
-
     }
   }
 

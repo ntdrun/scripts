@@ -21,6 +21,18 @@ class Utils {
   }
 
   /**
+  * Посчитать количество часов между двумя датами
+  * @param {Date} freshDate - Дата из которой будет вычитаться
+  * @param {Date} olderDate - Диапазон листа
+  * @returns {number} Количество дней
+  */
+  static diffHour(freshDate, olderDate) {
+    const differenceInMilliseconds = freshDate.getTime() - olderDate.getTime()
+    let differenceInHours = Math.round(differenceInMilliseconds / (1000 * 3600))
+    return differenceInHours
+  }
+
+  /**
   * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
   * @param {string} name - Имя листа
   * @param {string} range - Диапазон листа
@@ -55,4 +67,14 @@ class Utils {
   }
 
 
+  /**
+   * Проверяет правильность настроек Google Sheet листа
+  * @param {SpreadsheetApp.Spreadsheet} spreadsheet - Рабочая книга
+  */
+  static throwCheckSetting(spreadsheet) {
+    const loclZone = spreadsheet.getSpreadsheetTimeZone()
+
+    if ((loclZone !== 'Europe/Minsk') && (loclZone !== 'Europe/Moscow'))
+      throw new Error(`Необходимо задать временную зону в настройках книги на Москву или на Минск`)
+  }
 }
