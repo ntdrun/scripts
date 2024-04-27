@@ -1,0 +1,14 @@
+{
+  "name": "ttk",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {},
+  "devDependencies": {},
+  "scripts": {
+    "lint": "eslint *.js",
+    "clear": "if exist app rd /s /q app",
+    "pull": "npm run clear && npx clasp pull"
+  },
+  "author": "ASIN Expert",
+  "license": "ISC"
+}
