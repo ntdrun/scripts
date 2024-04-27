@@ -5,60 +5,73 @@ function calc() {
 }
 
 /**
- * @param {number} purchasePrice - Цена покупки товара.
- * @param {number} deliveryCosts - Затраты на доставку.
- * @param {number} advertisingPercent - Процент от цены продажи, идущий на рекламу.
- * @param {number} marketplaceCommissionPercent - Процент комиссии маркетплейса от цены продажи.
- * @param {number} marketplaceLogisticCosts - Стоимость логистики маркетплейса.
- * @param {number} unaccountedCostsPercent - Процент неучтенных затрат от цены продажи.
- * @param {number} rROI - Желаемая ROI.
- * @returns {Object} Цена продажи товара.
- * @customfunction
+* @customfunction
+* @param {number} purchasePrice - Цена покупки товара.
+* @param {number} deliveryCosts - Затраты на доставку.
+* @param {number} advertisingPercent - Процент от цены продажи, идущий на рекламу.
+* @param {number} marketplaceCommissionPercent - Процент комиссии маркетплейса от цены продажи.
+* @param {number} marketplaceLogisticCosts - Стоимость логистики маркетплейса.
+* @param {number} unaccountedCostsPercent - Процент неучтенных затрат от цены продажи.
+* @param {number} rROI - Желаемая ROI.
+* @returns {Object} Цена продажи товара.
 */
 function calculatePoint(purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent, rROI) {
-  const valCache = getCache('calculatePoint', purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent, rROI)
-  if (valCache !== null) return valCache
+  // Условие для бинарного поиска
+  const condition = (mid) => {
+    const res = calculateFinancialsUSN(mid, purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent);
+    return Math.round(res.ROI) >= Math.round(rROI * 100);
+  };
 
-  let correct = false
+  // Выполнение бинарного поиска
+  const result = binarySearch(purchasePrice, purchasePrice * 10, condition, 0.01, 1000);
 
-  let salePrice = purchasePrice
-  for (let i = 0; i < 100000; i++) {
-    const res = calculateFinancialsUSN(salePrice, purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent)
-    if (Math.round(res.ROI) >= Math.round(rROI * 100)) {
-      correct = true
-      break
-    }
-    salePrice += 0.01
+  if (result === 'Not found') {
+    return 'MaxItems';
   }
 
-  if (!correct) return 'MaxItems'
-  setCache(salePrice, 'calculatePoint', purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent, rROI)
+  return result;
+}
 
-  return salePrice
+/**
+ * Выполняет бинарный поиск для нахождения значения, удовлетворяющего условию.
+ * @param {number} low Нижняя граница поиска.
+ * @param {number} high Верхняя граница поиска.
+ * @param {Function} conditionFunc Функция, принимающая текущее значение и возвращающая true, если условие выполнено.
+ * @param {number} precision Точность, с которой нужно найти значение.
+ * @param {number} maxIterations Максимальное количество итераций для предотвращения зацикливания.
+ * @returns {number|string} Найденное значение или сообщение о превышении количества итераций.
+ */
+function binarySearch(low, high, conditionFunc, precision, maxIterations) {
+  let iteration = 0;
+  let correctValue = 'Not found';
+  while (low <= high && iteration < maxIterations) {
+    const mid = (low + high) / 2;
+    if (conditionFunc(mid)) {
+      high = mid - precision;
+      correctValue = mid;
+    } else {
+      low = mid + precision;
+    }
+    iteration++;
+  }
+  return correctValue;
 }
 
 /**
 * @customfunction
 */
 function calculatePointCommon(purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent, rROI) {
-  const valCache = getCache('calculatePointCommon', purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent, rROI)
-  if (valCache !== null) return valCache
-
-  let correct = false
-
-  let salePrice = purchasePrice
-  for (let i = 0; i < 100000; i++) {
-    const res = calculateFinancialsCommon(salePrice, purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent)
-    if (Math.round(res.ROI) >= Math.round(rROI * 100)) {
-      correct = true
-      break
-    }
-    salePrice += 0.01
+  // Условие для бинарного поиска
+  const condition = (mid)=> {
+    const res = calculateFinancialsCommon(mid, purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent);
+    return Math.round(res.ROI) >= Math.round(rROI * 100);
   }
-  if (!correct) return 'MaxItems'
-  setCache(salePrice, 'calculatePointCommon', purchasePrice, deliveryCosts, advertisingPercent, marketplaceCommissionPercent, marketplaceLogisticCosts, unaccountedCostsPercent, rROI)
 
-  return salePrice
+  // Выполнение бинарного поиска
+  const salePrice = binarySearch(purchasePrice, purchasePrice * 10, condition, 0.1, 1000);
+
+  if (salePrice === 'Not found') return 'MaxItems';
+  return salePrice;
 }
 
 
