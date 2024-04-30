@@ -25,7 +25,7 @@ function autoReadImpl(spreadsheetUrl) {
 }
 
 
-function readByDay(spreadsheetUrl = sh, days = 0) {
+function readByDay(spreadsheetUrl = sh, days = 3) {
   const ap = readAllDataFromApi(spreadsheetUrl, days)
   writeTTKDataImpl(ap, days, TTKSh.name, true)
 }

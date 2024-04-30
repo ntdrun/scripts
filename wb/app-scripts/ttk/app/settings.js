@@ -38,7 +38,7 @@ const PlanSh = {
 
 const GoodsSh = {
   name: 'СправТовары',
-  rangeRead: 'A1:AF',
+  rangeRead: 'A1:K',
   idx: {
     Категория: 1,
     Группа: 2,

@@ -7,6 +7,9 @@
 
 
 class Utils {
+  static isNumber(value) {
+    return !isNaN(parseFloat(value)) && isFinite(value);
+  }
 
   /**
   * Посчитать количество дней между двумя датами
