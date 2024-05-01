@@ -1,4 +1,4 @@
-const sh = "https://docs.google.com/spreadsheets/d/1RGoH_VERn-_xV-Lqtm3m0ebE5sC2A-pLIdOmEQiY3Ro/edit"
+const sh = SpreadsheetApp.getActive().getUrl()
 
 function autoRead() {
   const spreadsheetUrl = sh
@@ -283,7 +283,7 @@ function writeTTKDataImpl(resApi, prevDay, nameSheet, forDay = true) {
       valsGroup[i][TTKSh.idx.ВыручкаПлан - 1] = plan ? plan[PlanSh.idx.ПланВыручПродаж - 1] : 0
       valsGroup[i][TTKSh.idx.ПереходовПлан - 1] = mapTrafPlan.get(groupsName[i]) || 0
 
-      valsGroup[i][TTKSh.idx.РекIDs - 1] = ad.adIds || ''
+      valsGroup[i][TTKSh.idx.РекIDs - 1] = ad.adIds || EmptyValue
 
       //Считаем количество товара без стока
       let countInGroup = 0, countInGroupWithStock = 0
@@ -318,14 +318,14 @@ function writeTTKDataImpl(resApi, prevDay, nameSheet, forDay = true) {
         g[TTKSh.idx.ТипЗаписи - 1] = TypeOfRecord.ad
         g[TTKSh.idx.ГруппаТоваров - 1] = gName
         g[TTKSh.idx.Категория - 1] = goods.getCatByGroupName(gName)
-        g[TTKSh.idx.РекСлили - 1] = ad.sum || 0
-        g[TTKSh.idx.РекПросм - 1] = ad.views || 0
-        g[TTKSh.idx.РекПерех - 1] = ad.clicks || 0
-        g[TTKSh.idx.РекCTR - 1] = ad.ctr || 0
-        g[TTKSh.idx.РекCPC - 1] = ad.cpc || 0
-        g[TTKSh.idx.РекПозиция - 1] = ad.avg_position || 0
-        g[TTKSh.idx.РекID - 1] = ad.adId || ''
-        g[TTKSh.idx.РекSKUКво - 1] = ad.countAd || ''
+        g[TTKSh.idx.РекСлили - 1] = ad.sum || EmptyValue
+        g[TTKSh.idx.РекПросм - 1] = ad.views || EmptyValue
+        g[TTKSh.idx.РекПерех - 1] = ad.clicks || EmptyValue
+        g[TTKSh.idx.РекCTR - 1] = ad.ctr || EmptyValue
+        g[TTKSh.idx.РекCPC - 1] = ad.cpc || EmptyValue
+        g[TTKSh.idx.РекПозиция - 1] = ad.avg_position || EmptyValue
+        g[TTKSh.idx.РекID - 1] = ad.adId || EmptyValue
+        g[TTKSh.idx.РекSKUКво - 1] = ad.countAd || EmptyValue
         adGroup.push(g)
       })
     })
@@ -375,7 +375,7 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
   const values = shd.vals
 
   //считали ID рекламных компаний по группе
-  const allIdAds = []
+  let allIdAds = []
   values.forEach(v => {
     if (v[AdSh.idx.РК_ID1 - 1]) allIdAds.push(v[AdSh.idx.РК_ID1 - 1])
     if (v[AdSh.idx.РК_ID2 - 1]) allIdAds.push(v[AdSh.idx.РК_ID2 - 1])
@@ -383,6 +383,9 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
     if (v[AdSh.idx.РК_ID4 - 1]) allIdAds.push(v[AdSh.idx.РК_ID4 - 1])
     if (v[AdSh.idx.РК_ID5 - 1]) allIdAds.push(v[AdSh.idx.РК_ID5 - 1])
   })
+  //Удалили повторы
+  allIdAds = [...new Set(allIdAds)];
+
 
   const stat = WBApi.getHistoryAdFullStatByDayWBApi(props.adTokWb, allIdAds, prevDay)
 
@@ -410,7 +413,7 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
         curStat.boosterStats.forEach(v => _avg_position.push(v.avg_position))
       }
 
-      res.avg_position = _avg_position.length ? _avg_position.reduce((a, v) => a + v, 0) / _avg_position.length : 0
+      res.avg_position = _avg_position.length ? _avg_position.reduce((a, v) => a + v, 0) / _avg_position.length : EmptyValue //Если нет выводим пустое значение
       return res
     }
 
@@ -542,8 +545,8 @@ function getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay) {
     skuData.push(g)
 
     if (prevDay > CountDaysNonStock) {
-      g.ОстатикиWBшт = ''
-      g.ОстаткиСПшт = ''
+      g.ОстатикиWBшт = EmptyValue
+      g.ОстаткиСПшт = EmptyValue
     }
   }
 

@@ -79,6 +79,7 @@ function getHistoryAdFullStatWBApi(adTok, idAds, from, to) {
   const options = {
     'method': 'post',
     'headers': adSet.headers,
+    'muteHttpExceptions': true,
     'contentType': 'application/json',
     'payload': JSON.stringify(idAds.map(v => {
       return {
@@ -88,8 +89,15 @@ function getHistoryAdFullStatWBApi(adTok, idAds, from, to) {
     }))
   };
 
+
   const response = UrlFetchApp.fetch(url, options);
   const res = JSON.parse(response.getContentText());
+
+  if (res.error) {
+    console.error(`getHistoryAdFullStatWBApi - ${res.error}`, options.payload)
+  }
+  if (response.getResponseCode() !== 200) return []
+
   return res
 }
 

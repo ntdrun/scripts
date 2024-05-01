@@ -1,0 +1,25 @@
+  return {
+    getHistoryCostAdByPrevDaysWBApi,
+    getHistoryCostAdWBApi,
+    getHistoryAdFullStatByDayWBApi,
+    getHistoryAdFullStatWBApi,
+    getInfoAdCompanyWBApi,
+    pauseAdCompanyWBApi,
+    startAdCompanyWBApi,
+    getSalesFunnelAnaliticsByPrevDaysWBApi,
+    getSalesFunnelAnaliticsWBApi,
+    getGoodsWithPricesWBApi,
+    getHistoryAllReviewsByPrevDaysWBApi,
+    getHistoryAllReviewsWBApi,
+    getSheetTest,
+    getTarifsWBAPI,
+    getStocksWhMarketplaceWBApi,
+    getListWhMarketplaceWBApi,
+    convertDateToUnixTimestamp,
+    convertDateToUnixTimestampSec,
+    toDateDD_MM_YYSheet,
+    toDateDD_MM_YY_HH_MM_SSSheet,
+    getContFromSetUtils,
+    getDateFromTo
+  };
+})();
