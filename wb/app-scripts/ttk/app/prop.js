@@ -2,6 +2,7 @@
  * @typedef {Object} AppProperty
  * @property {string} adTokWb
  * @property {string} analiticsTokWB
+ * @property {string} statTokWB
  * @property {string} qqTokWB
  * @property {string} version
  * @property {number} depthRead
@@ -20,7 +21,8 @@ class Properties {
     return {
       adTokWb: map.get(AppSh.key.adTokWb)[0],
       analiticsTokWB: map.get(AppSh.key.analiticsTokWB)[0],
-      qqTokWB: map.has(AppSh.key.qqTokWB) ? map.get(AppSh.key.qqTokWB) : '',
+      qqTokWB: map.has(AppSh.key.qqTokWB) ? map.get(AppSh.key.qqTokWB)[0] : '',
+      statTokWB: map.has(AppSh.key.statTokWB) ? map.get(AppSh.key.statTokWB)[0] : '',
       version: map.get(AppSh.key.version)[0],
       depthRead: map.get(AppSh.key.depthRead)[0],
       progIsOn: map.get(AppSh.key.progIsOn)[0],

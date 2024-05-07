@@ -1,4 +1,7 @@
 class AdCompany {
+
+
+
   static getRangeFromSheet() {
     let vals = Utils.AdCompaniesSheet.getRange(adCompaniesSheet.RangeAll).getValues()
     vals = vals.filter(v => (v[adCompaniesSheet.idx.Id - 1]))
@@ -20,7 +23,7 @@ class AdCompany {
   }
 
   static readAdCompaniesWBInfo() {
-    const adInfos = WBApi.getInfoAdCompanyWBApi(adTok, idAds)
+    const adInfos = WBApi.getInfoAdCompanyWBApi(Utils.Settings.adTokWb, idAds)
     return adInfos
   }
 
@@ -32,7 +35,7 @@ class AdCompany {
 
   static startAdCompanyWB(companyAd) {
     try {
-      const res = WBApi.startAdCompanyWBApi(adTok, companyAd.id)
+      const res = WBApi.startAdCompanyWBApi(Utils.Settings.adTokWb, companyAd.id)
       if (res === 200) Report.writeReport(1, 'start-ok', companyAd.id, `Компания '${companyAd.name}' успешно запущена`)
       else Report.writeReport(1, 'start-err', companyAd.id, `Ошибка запуска компании '${companyAd.name}'. Код ${res}`)
       return res === 200
@@ -47,7 +50,7 @@ class AdCompany {
 
   static pauseAdCompanyWB(companyAd) {
     try {
-      const res = WBApi.pauseAdCompanyWBApi(adTok, companyAd.id)
+      const res = WBApi.pauseAdCompanyWBApi(Utils.Settings.adTokWb, companyAd.id)
       if (res === 200) Report.writeReport(1, 'pause-ok', companyAd.id, `Компания '${companyAd.name}' успешно приостановлена`)
       else Report.writeReport(1, 'pause-err', companyAd.id, `Ошибка приостановки компании '${companyAd.name}'. Код ${res}`)
       return res === 200
@@ -81,19 +84,58 @@ class AdCompany {
     range.setValues(infoArr)
   }
 
+  /**
+   * Вывести потраченной информации в таблицу таблицу
+     * @param {object} companies - результата метода readAdCompanies()
+     * @param {object} budgets - результата метода wastedMoney()
+   */
+  static writeWastedMoney(companies, budgets) {
+    const idAds = companies.map(v => v.id)
+
+    const infoArr = idAds.map(v => [budgets.get(v) || 'Нет данных'])
+
+    const rangeA1 = adCompaniesSheet.RangeWastedMoney + (adCompaniesSheet.headerLen + companies.length)
+    const range = Utils.AdCompaniesSheet.getRange(rangeA1)
+    range.setValues(infoArr)
+  }
+
+
   static forceWriteStatus() {
     const companies = AdCompany.readAdCompanies()
     const idAds = companies.map(v => v.id)
-    let adInfos = WBApi.getInfoAdCompanyWBApi(adTok, idAds)
+
+    let adInfos = WBApi.getInfoAdCompanyWBApi(Utils.Settings.adTokWb, idAds)
     AdCompany.writeStatus(companies, adInfos)
+
+    const budgets = AdCompany.wastedMoney(idAds)
+    AdCompany.writeWastedMoney(companies, budgets)
   }
+
+  //Получить информацию по потраченным деньгам
+  static wastedMoney(idAds) {
+    const map = new Map()
+    try {
+      const stat = WBApi.getHistoryAdFullStatByDayWBApi(Utils.Settings.adTokWb, idAds, 0)
+      stat.forEach(v => {
+        map.set(v.advertId, v.sum)
+      })
+    }
+    catch (e) {
+      Report.writeReport(3, 'Err', 0, `Сбой API WB ${e.message}`)
+    }
+
+    return map
+
+  }
+
 
   //Метод который запускает проверку что надо включить и выключить а также обновляет статусы текущих состояний
   static update() {
     const companies = AdCompany.readAdCompanies()
     const idAds = companies.map(v => v.id)
-    let adInfos = WBApi.getInfoAdCompanyWBApi(adTok, idAds)
-    //  const stat = WBApi.getHistoryAdFullStatByDayWBApi(props.adTokWb, allIdAds, prevDay)
+    let adInfos = WBApi.getInfoAdCompanyWBApi(Utils.Settings.adTokWb, idAds)
+    const budgets = AdCompany.wastedMoney(idAds)
+    AdCompany.writeWastedMoney(companies, budgets)
 
 
     if (Utils.IsAutoOn) {
@@ -109,7 +151,17 @@ class AdCompany {
         const isRunWb = wbInfo.status === 9
 
         //true - значит должно быть включена
-        const isRunShould = Scheduler.isActive(v.schedulerId, schedGroup, new Date())
+        let isRunShould = Scheduler.isActive(v.schedulerId, schedGroup, new Date())
+
+        //Если превышен бюджет то останавливаем работу
+        const budgetToday = budgets.get(v.id)
+        if (v.budget) {
+          if (budgetToday > v.budget) {
+            isRunShould = false
+            if (isRunWb) Report.writeReport(3, 'stop', v.id, `Компания остановлена по превышению бюджета`)
+          }
+        }
+
 
         if (isRunShould !== isRunWb) {
           if (isRunShould) AdCompany.startAdCompanyWB(v)
@@ -118,7 +170,7 @@ class AdCompany {
       }
 
       Utilities.sleep(sleepAfterPauseAndStart)
-      adInfos = WBApi.getInfoAdCompanyWBApi(adTok, idAds)
+      adInfos = WBApi.getInfoAdCompanyWBApi(Utils.Settings.adTokWb, idAds)
       AdCompany.writeStatus(companies, adInfos)
     } else {
       AdCompany.writeStatus(companies, adInfos)

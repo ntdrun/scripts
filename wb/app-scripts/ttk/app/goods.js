@@ -22,11 +22,11 @@ class Goods {
     let values = getValues()
 
     while (!checks(values) && attempts < attemptsCount) {
-      Utilities.sleep(5000);
-      Log.write(spreadsheet, 1, 'Info', `Повтор ${attempts + 1} из ${attemptsCount}`)
-      values = getValues();
+      Utilities.sleep(7000);
+      values = getValues(attempts);
       attempts++;
     }
+    if (attempts >= attemptsCount) Log.write(spreadsheet, 1, 'Info', `Повтор ${attempts + 1} из ${attemptsCount}`)
   }
   /**
    * Получить информацию из справочника товаров
@@ -37,7 +37,8 @@ class Goods {
     let res
 
     //Надо проверить используется ли тут формула и если будет % то надо выйти
-    Goods.waitNumber(spreadsheet, () => {
+    Goods.waitNumber(spreadsheet, (attempts) => {
+      if (attempts === 0) SpreadsheetApp.flush()
       res = Utils.getDataSheet(spreadsheet, GoodsSh.name, GoodsSh.rangeRead)
       return [res.vals[0][GoodsSh.idx.РеклБюджПрод - 1], res.vals[0][GoodsSh.idx.Прибыль - 1]]
     })

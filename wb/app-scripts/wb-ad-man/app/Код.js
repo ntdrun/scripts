@@ -1,3 +1,4 @@
+
 function Action(tick = true) {
   if (Utils.IsProgramOn) AdCompany.update()
 }

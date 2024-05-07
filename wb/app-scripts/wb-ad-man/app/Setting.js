@@ -3,8 +3,9 @@ const sleepAfterPauseAndStart = 3000
 const adCompaniesSheet = {
   headerLen:1,
   name: 'РекКомпании',
-  RangeAll: 'A2:G',
+  RangeAll: 'A2:H',
   RangeStatus: 'B2:B',
+  RangeWastedMoney: 'F2:F',
   //Индексы колонок
   idx: {
     OnOff: 1,
@@ -12,7 +13,8 @@ const adCompaniesSheet = {
     Name: 3,
     Id: 4,
     SchedulerId: 5,
-    Budget: 6
+    WastedMoney: 6,
+    Budget: 7
   }
 }
 

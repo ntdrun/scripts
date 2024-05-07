@@ -39,6 +39,23 @@ class Utils {
     return res
   }
 
+  /**
+  * @typedef {Object} Settings
+  * @property {string} adTokWb
+  * 
+  * @returns {Settings} Описание товаров
+  */
+  static get Settings() {
+    if (!Utils.settings) {
+      const adTokWb = Utils.SetSheet.getRange(setSheet.AdTok).getValue()
+
+      Utils.settings = {
+        adTokWb
+      }
+    }
+
+    return Utils.settings
+  }
 
   /**
    * @param {object[][]} rows - массив строк

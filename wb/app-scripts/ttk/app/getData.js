@@ -25,7 +25,7 @@ function autoReadImpl(spreadsheetUrl) {
 }
 
 
-function readByDay(spreadsheetUrl = sh, days = 3) {
+function readByDay(spreadsheetUrl = sh, days = 2) {
   const ap = readAllDataFromApi(spreadsheetUrl, days)
   writeTTKDataImpl(ap, days, TTKSh.name, true)
 }
@@ -204,6 +204,7 @@ function readAllDataFromApi(spreadsheetUrl, prevDay) {
     }
   }
   catch (e) {
+    console.error(e.stack || e)
     throw e
   }
 }
@@ -471,13 +472,8 @@ function getAdCostByDay(props, spreadsheet, prevDay) {
 function getAnaliticsInfoByDay(props, goods, spreadsheet, prevDay) {
   //Значение прибыли или рекламы может быть задано в %. Если в % то высчитываем в зависимости от выручки
   const calcFromPerc = (revenue, profitOrAdBudget, count) => {
-    //Google sheet может сама преобразовать %
-    if ((typeof profitOrAdBudget === "number") && (profitOrAdBudget < 1.5)) {
-      calc = revenue * profitOrAdBudget
-      return calc
-    }
     if (typeof profitOrAdBudget === "string") {
-      if (profitOrAdBudget.indexOf('%') > 0) {
+      if (profitOrAdBudget.indexOf('%%') > 0) {
         const perc = parseInt((profitOrAdBudget.match(/\d+/) || [])[0], 10)
         const calc = (perc / 100) * revenue
         return calc

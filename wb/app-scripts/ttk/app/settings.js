@@ -62,6 +62,7 @@ const AppSh = {
     analiticsTokWB: "WBApiKeyAnalitics",
     adTokWb: "WBApiKeyAd",
     qqTokWB: "WBApiKeyQQ",
+    statTokWB: "WBApiKeyStat",
     depthRead: "КвоДнейСчитывания",
     progIsOn: "ПрограммаЗапущ"
   }
@@ -131,5 +132,6 @@ const TTKSh = {
 const TTKHourSh = {
   ...TTKSh,
   name: 'ТТКчас (auto)'
-
 }
+
+
