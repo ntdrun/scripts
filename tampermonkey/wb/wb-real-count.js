@@ -242,24 +242,35 @@ const calcPartWB = (productId) => {
     }
 }
 
+
+const BASKETS = [
+    [0, 143],
+    [144, 287],
+    [288, 431],
+    [432, 719],
+    [720, 1007],
+    [1008, 1061],
+    [1062, 1115],
+    [1116, 1169],
+    [1170, 1313],
+    [1314, 1601],
+    [1602, 1655],
+    [1656, 1919],
+    [1920, 2045],
+    [2046, 2189],
+    [2190, 2405],
+    [2406, 2621]
+];
+
 const getBasketNumber = (productId) => {
-    const basket = function (t) {
-        if (t >= 0 && t <= 143) return 1;
-        if (t >= 144 && t <= 287) return 2;
-        if (t >= 288 && t <= 431) return 3;
-        if (t >= 432 && t <= 719) return 4;
-        if (t >= 720 && t <= 1007) return 5;
-        if (t >= 1008 && t <= 1061) return 6;
-        if (t >= 1062 && t <= 1115) return 7;
-        if (t >= 1116 && t <= 1169) return 8;
-        if (t >= 1170 && t <= 1313) return 9;
-        if (t >= 1314 && t <= 1601) return 10;
-        if (t >= 1602 && t <= 1655) return 11;
-        if (t >= 1656 && t <= 1919) return 12;
-        if (t >= 1920 && t <= 2045) return 13;
-        return 14;
-    };
-    return basket(Math.floor(productId / 1e5));
+    const vol = parseInt(productId / 100000, 10);
+    const basket = BASKETS.reduce((accumulator, current, index) => {
+        if (vol >= current[0] && vol <= current[1]) {
+            return index + 1;
+        }
+        return accumulator;
+    }, 1);
+    return basket;
 };
 
 function getQuery() {
@@ -557,7 +568,7 @@ function daysBetween(date1, date2) {
 
         newDiv.innerHTML = text;
         const copyButton = newDiv.querySelector('#copyButton');
-debugger
+        debugger
         copyButton.addEventListener('click', () => {
             copyButton.disabled = true;
 
